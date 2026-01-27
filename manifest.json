@@ -1,0 +1,13 @@
+{
+  "name": "Days Spent Already",
+  "short_name": "Days Spent",
+  "start_url": "/days-spent-pwa/index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#22c55e",
+  "icons": [{
+    "src": "icon.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  }]
+}
