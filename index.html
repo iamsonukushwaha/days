@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Days Spent</title>
 
 <link rel="manifest" href="manifest.json">
@@ -15,9 +15,11 @@
   --muted:#94a3b8;
 }
 
+*{box-sizing:border-box}
+
 body{
   margin:0;
-  font-family:system-ui;
+  font-family:system-ui,-apple-system;
   background:var(--bg);
   color:#e5e7eb;
   display:flex;
@@ -39,38 +41,50 @@ h1{
   margin:4px 0 8px;
 }
 
+/* Progress */
 .progress{
   height:14px;
   background:#1e293b;
   border-radius:999px;
   overflow:hidden;
 }
-
 .bar{
   height:100%;
   background:var(--primary);
   width:0%;
 }
-
 .percent{
   text-align:center;
   font-size:11px;
   color:var(--muted);
-  margin:6px 0 12px;
+  margin:6px 0 10px;
 }
 
+/* Share button */
+#shareBtn{
+  width:100%;
+  padding:8px;
+  font-size:11px;
+  border:none;
+  border-radius:10px;
+  background:var(--primary);
+  color:#022c22;
+  font-weight:600;
+  margin-bottom:10px;
+  cursor:pointer;
+}
+
+/* Calendar */
 .month{
   font-size:12px;
   color:var(--muted);
   margin:12px 0 6px;
 }
-
 .days{
   display:grid;
   grid-template-columns:repeat(7,1fr);
   gap:6px;
 }
-
 .day{
   aspect-ratio:1;
   border-radius:50%;
@@ -81,7 +95,6 @@ h1{
   background:#334155;
   cursor:pointer;
 }
-
 .day.spent{
   background:var(--primary);
   color:#022c22;
@@ -99,6 +112,7 @@ footer{
 
 <body>
 <div class="app">
+
 <h1>Days Spent</h1>
 
 <div class="progress">
@@ -106,32 +120,38 @@ footer{
 </div>
 <div class="percent" id="percent"></div>
 
+<button id="shareBtn">Share Today</button>
+
 <div id="calendar"></div>
 
-<footer>Tap a day → history • news • festivals</footer>
+<footer>Tap a day → history, events, festivals</footer>
+
 </div>
 
 <script>
-const today=new Date();
-const year=today.getFullYear();
-const start=new Date(year,0,1);
-const end=new Date(year+1,0,1);
+/* ===== DATE CALCULATION ===== */
+const today = new Date();
+const year = today.getFullYear();
+const start = new Date(year,0,1);
+const end = new Date(year+1,0,1);
 
-const total=(end-start)/86400000;
-const spent=Math.floor((today-start)/86400000)+1;
-const percent=((spent/total)*100).toFixed(1);
+const total = Math.round((end-start)/86400000);
+const spent = Math.floor((today-start)/86400000)+1;
+const percent = ((spent/total)*100).toFixed(1);
 
-document.getElementById("bar").style.width=percent+"%";
-document.getElementById("percent").textContent=
-`${spent}/${total} days • ${percent}%`;
+/* Progress UI */
+document.getElementById("bar").style.width = percent+"%";
+document.getElementById("percent").textContent =
+`${spent}/${total} days • ${percent}% completed`;
 
+/* ===== CALENDAR ===== */
 const months=[
 "January","February","March","April","May","June",
 "July","August","September","October","November","December"
 ];
 
-const calendar=document.getElementById("calendar");
-let count=0;
+const calendar = document.getElementById("calendar");
+let count = 0;
 
 months.forEach((m,mi)=>{
   const title=document.createElement("div");
@@ -142,16 +162,19 @@ months.forEach((m,mi)=>{
   const grid=document.createElement("div");
   grid.className="days";
 
-  const days=new Date(year,mi+1,0).getDate();
-  for(let d=1;d<=days;d++){
+  const daysInMonth = new Date(year,mi+1,0).getDate();
+  for(let d=1; d<=daysInMonth; d++){
     count++;
     const el=document.createElement("div");
     el.className="day"+(count<=spent?" spent":"");
     el.textContent=d;
 
+    // ONE LINK ONLY (Wikipedia "On this day")
     el.onclick=()=>{
-      const link=`https://en.wikipedia.org/wiki/${m}_${d}`;
-      window.open(link,"_blank");
+      window.open(
+        `https://en.wikipedia.org/wiki/${m}_${d}`,
+        "_blank"
+      );
     };
 
     grid.appendChild(el);
@@ -159,6 +182,72 @@ months.forEach((m,mi)=>{
   calendar.appendChild(grid);
 });
 
+/* ===== SHARE TODAY AS IMAGE ===== */
+document.getElementById("shareBtn").onclick = async () => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1080;
+  const ctx = canvas.getContext("2d");
+
+  // Background
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0,0,1080,1080);
+
+  // Title
+  ctx.fillStyle = "#e5e7eb";
+  ctx.font = "bold 64px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("Days Spent", 540, 170);
+
+  // Date
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "32px system-ui";
+  ctx.fillText(today.toDateString(), 540, 230);
+
+  // Progress bar
+  const barW = 700;
+  const barX = (1080-barW)/2;
+  ctx.fillStyle = "#1e293b";
+  ctx.fillRect(barX, 330, barW, 26);
+  ctx.fillStyle = "#22c55e";
+  ctx.fillRect(barX, 330, barW*(percent/100), 26);
+
+  // Numbers
+  ctx.fillStyle = "#e5e7eb";
+  ctx.font = "bold 48px system-ui";
+  ctx.fillText(`${spent}/${total} days`, 540, 450);
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "36px system-ui";
+  ctx.fillText(`${percent}% of ${year} completed`, 540, 520);
+
+  // Quote
+  ctx.font = "28px system-ui";
+  ctx.fillText("Every day counts.", 540, 640);
+
+  // Footer
+  ctx.font = "22px system-ui";
+  ctx.fillStyle = "#64748b";
+  ctx.fillText("Days Spent App", 540, 760);
+
+  const blob = await new Promise(r => canvas.toBlob(r));
+
+  if (navigator.share) {
+    const file = new File([blob], "days-spent.png", {type:"image/png"});
+    navigator.share({
+      files:[file],
+      title:"Days Spent",
+      text:"Tracking my year ⏳"
+    });
+  } else {
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="days-spent.png";
+    a.click();
+  }
+};
+
+/* ===== SERVICE WORKER ===== */
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("service-worker.js");
 }
