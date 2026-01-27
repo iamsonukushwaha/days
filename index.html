@@ -2,80 +2,95 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Days Spent Already</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Days Spent</title>
 
 <link rel="manifest" href="manifest.json">
 
 <style>
-:root {
+:root{
   --bg:#0f172a;
   --card:#111827;
   --primary:#22c55e;
   --muted:#94a3b8;
 }
 
-body {
+body{
   margin:0;
   font-family:system-ui;
   background:var(--bg);
   color:#e5e7eb;
   display:flex;
   justify-content:center;
+  padding:12px;
+}
+
+.app{
+  width:100%;
+  max-width:420px;
+  background:var(--card);
+  border-radius:18px;
   padding:14px;
 }
 
-.app {
-  width:100%;
-  max-width:430px;
-  background:var(--card);
-  border-radius:20px;
-  padding:16px;
-}
-
-h1 {
+h1{
   text-align:center;
-  margin:6px 0 12px;
-  font-size:22px;
+  font-size:18px;
+  margin:4px 0 8px;
 }
 
-.month {
-  margin:18px 0 8px;
-  font-size:14px;
+.progress{
+  height:14px;
+  background:#1e293b;
+  border-radius:999px;
+  overflow:hidden;
+}
+
+.bar{
+  height:100%;
+  background:var(--primary);
+  width:0%;
+}
+
+.percent{
+  text-align:center;
+  font-size:11px;
   color:var(--muted);
-  font-weight:600;
+  margin:6px 0 12px;
 }
 
-.days {
+.month{
+  font-size:12px;
+  color:var(--muted);
+  margin:12px 0 6px;
+}
+
+.days{
   display:grid;
   grid-template-columns:repeat(7,1fr);
-  gap:8px;
+  gap:6px;
 }
 
-.day {
+.day{
   aspect-ratio:1;
   border-radius:50%;
+  font-size:10px;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:12px;
   background:#334155;
   cursor:pointer;
 }
 
-.day.spent {
+.day.spent{
   background:var(--primary);
   color:#022c22;
   font-weight:600;
 }
 
-.day:hover {
-  transform:scale(1.08);
-}
-
-footer {
-  margin-top:16px;
-  font-size:11px;
+footer{
+  margin-top:10px;
+  font-size:10px;
   text-align:center;
   color:var(--muted);
 }
@@ -84,62 +99,63 @@ footer {
 
 <body>
 <div class="app">
-<h1>Days Spent Already</h1>
+<h1>Days Spent</h1>
+
+<div class="progress">
+  <div class="bar" id="bar"></div>
+</div>
+<div class="percent" id="percent"></div>
+
 <div id="calendar"></div>
-<footer>Tap a day to explore history • news • festivals</footer>
+
+<footer>Tap a day → history • news • festivals</footer>
 </div>
 
 <script>
-const calendar = document.getElementById("calendar");
-const today = new Date();
-const year = today.getFullYear();
+const today=new Date();
+const year=today.getFullYear();
+const start=new Date(year,0,1);
+const end=new Date(year+1,0,1);
 
-const months = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
+const total=(end-start)/86400000;
+const spent=Math.floor((today-start)/86400000)+1;
+const percent=((spent/total)*100).toFixed(1);
+
+document.getElementById("bar").style.width=percent+"%";
+document.getElementById("percent").textContent=
+`${spent}/${total} days • ${percent}%`;
+
+const months=[
+"January","February","March","April","May","June",
+"July","August","September","October","November","December"
 ];
 
-const start = new Date(year,0,1);
-const end = new Date(year+1,0,1);
-const totalDays = (end-start)/86400000;
-const spentDays = Math.floor((today-start)/86400000)+1;
+const calendar=document.getElementById("calendar");
+let count=0;
 
-let dayCount = 0;
+months.forEach((m,mi)=>{
+  const title=document.createElement("div");
+  title.className="month";
+  title.textContent=m;
+  calendar.appendChild(title);
 
-months.forEach((month, mIndex) => {
-  const monthTitle = document.createElement("div");
-  monthTitle.className = "month";
-  monthTitle.textContent = month;
-  calendar.appendChild(monthTitle);
+  const grid=document.createElement("div");
+  grid.className="days";
 
-  const grid = document.createElement("div");
-  grid.className = "days";
+  const days=new Date(year,mi+1,0).getDate();
+  for(let d=1;d<=days;d++){
+    count++;
+    const el=document.createElement("div");
+    el.className="day"+(count<=spent?" spent":"");
+    el.textContent=d;
 
-  const daysInMonth = new Date(year, mIndex+1, 0).getDate();
-
-  for(let d=1; d<=daysInMonth; d++){
-    dayCount++;
-    const day = document.createElement("div");
-    day.className = "day" + (dayCount <= spentDays ? " spent" : "");
-    day.textContent = d;
-
-    const dateStr = `${month} ${d}`;
-
-    day.onclick = () => {
-      const wiki = `https://en.wikipedia.org/wiki/${month}_${d}`;
-      const news = `https://news.google.com/search?q=${month}%20${d}%20history`;
-      const festival = `https://www.google.com/search?q=${month}%20${d}%20festival%20India`;
-      const fun = `https://www.google.com/search?q=${month}%20${d}%20fun%20facts`;
-
-      window.open(
-        `${wiki}\n${news}\n${festival}\n${fun}`,
-        "_blank"
-      );
+    el.onclick=()=>{
+      const link=`https://en.wikipedia.org/wiki/${m}_${d}`;
+      window.open(link,"_blank");
     };
 
-    grid.appendChild(day);
+    grid.appendChild(el);
   }
-
   calendar.appendChild(grid);
 });
 
