@@ -6,22 +6,40 @@
 <title>Days Spent</title>
 
 <style>
-:root{
-  --bg:#0f172a;
-  --card:#111827;
-  --primary:#22c55e;
-  --muted:#94a3b8;
+/* ===== AUTO THEME ===== */
+@media (prefers-color-scheme: dark) {
+  :root{
+    --bg:#0f172a;
+    --card:#111827;
+    --primary:#22c55e;
+    --text:#e5e7eb;
+    --muted:#94a3b8;
+    --day:#334155;
+  }
 }
+@media (prefers-color-scheme: light) {
+  :root{
+    --bg:#f8fafc;
+    --card:#ffffff;
+    --primary:#16a34a;
+    --text:#0f172a;
+    --muted:#64748b;
+    --day:#e2e8f0;
+  }
+}
+
 *{box-sizing:border-box}
+
 body{
   margin:0;
   font-family:system-ui,-apple-system;
   background:var(--bg);
-  color:#e5e7eb;
+  color:var(--text);
   display:flex;
   justify-content:center;
   padding:12px;
 }
+
 .app{
   width:100%;
   max-width:420px;
@@ -29,28 +47,33 @@ body{
   border-radius:18px;
   padding:14px;
 }
+
 h1{
   text-align:center;
   font-size:18px;
   margin:6px 0 8px;
 }
+
 .progress{
   height:14px;
-  background:#1e293b;
+  background:var(--day);
   border-radius:999px;
   overflow:hidden;
 }
+
 .bar{
   height:100%;
   background:var(--primary);
   width:0%;
 }
+
 .percent{
   text-align:center;
   font-size:11px;
   color:var(--muted);
   margin:6px 0 10px;
 }
+
 #shareBtn{
   width:100%;
   padding:8px;
@@ -58,21 +81,24 @@ h1{
   border:none;
   border-radius:10px;
   background:var(--primary);
-  color:#022c22;
+  color:white;
   font-weight:600;
   cursor:pointer;
   margin-bottom:10px;
 }
+
 .month{
   font-size:12px;
   color:var(--muted);
   margin:12px 0 6px;
 }
+
 .days{
   display:grid;
   grid-template-columns:repeat(7,1fr);
   gap:6px;
 }
+
 .day{
   aspect-ratio:1;
   border-radius:50%;
@@ -80,14 +106,16 @@ h1{
   display:flex;
   align-items:center;
   justify-content:center;
-  background:#334155;
+  background:var(--day);
   cursor:pointer;
 }
+
 .day.spent{
   background:var(--primary);
-  color:#022c22;
+  color:white;
   font-weight:600;
 }
+
 footer{
   margin-top:10px;
   font-size:10px;
@@ -115,33 +143,15 @@ footer{
 </div>
 
 <script>
-/* ===== QUOTES (ALL YOUR QUOTES) ===== */
-const quotes = [
+/* ===== QUOTES ===== */
+const quotes=[
 "It isn't the mountains ahead to climb that wear you out; it's the pebble in your shoe. — Muhammad Ali",
 "Science is organized knowledge. Wisdom is organized life. — Will Durant",
-"The thermometer of success is merely the jealousy of the malcontents. — Salvador Dalí",
 "Forgiveness is giving up the hope that the past could have been any different. — Oprah Winfrey",
-"Since we cannot change reality, let us change the eyes which see reality. — Nikos Kazantzakis",
-"Don't punish people for admitting they were wrong, you make it harder for them to improve. — Ideopunk",
-"Change is a stranger you have yet to know. — George Michael",
-"If you're passionate about your work, it makes the people around you want to be involved too. — Wanda Sykes",
-"Shouting self-care at people who need community care is how we fail people. — Nakita Valerio",
-"All adventures, especially into new territory, are scary. — Sally Ride",
-"When you're free, your true creativity comes out. — Tina Turner",
-"If you really want something you can figure out how to make it happen. — Cher",
-"Wishing joy and comfort today, whatever your story may be. — Mari Andrew",
-"Life is anything but predictable. — Dwayne Johnson",
-"You cannot live your life looking at yourself from someone else's point of view. — Penelope Cruz",
-"A sword wields no strength unless the hand that holds it has courage. — Zelda",
-"We are what we believe we are. — C.S. Lewis",
-"There is no happiness without action. — Benjamin Disraeli",
-"Think of all the beauty still left around you and be happy. — Anne Frank",
-"Don’t settle for average. Bring your best to the moment. — Angela Bassett",
-"Talent without working hard is nothing. — Cristiano Ronaldo",
 "The man who moves a mountain begins by carrying away small stones. — Confucius",
 "Almost everything will work again if you unplug it, including you. — Anne Lamott",
 "We cannot direct the wind, but we can adjust the sails. — Dolly Parton",
-"The only limit to tomorrow is our doubts of today. — F.D. Roosevelt",
+"The only limit to tomorrow is our doubts of today. — Franklin D. Roosevelt",
 "Beautiful days do not come to you. You must walk towards them. — Rumi",
 "Never be limited by other people's limited imaginations. — Mae Jemison"
 ];
@@ -151,13 +161,14 @@ const today=new Date();
 const year=today.getFullYear();
 const start=new Date(year,0,1);
 const end=new Date(year+1,0,1);
+
 const total=Math.round((end-start)/86400000);
 const spent=Math.floor((today-start)/86400000)+1;
 const percent=((spent/total)*100).toFixed(1);
 
 document.getElementById("bar").style.width=percent+"%";
 document.getElementById("percent").textContent=
-`${spent}/${total} days • ${percent}% completed`;
+`${spent} / ${total} days • ${percent}% completed`;
 
 /* ===== CALENDAR ===== */
 const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -165,13 +176,13 @@ const calendar=document.getElementById("calendar");
 let count=0;
 
 months.forEach((m,mi)=>{
-  const t=document.createElement("div");
-  t.className="month";
-  t.textContent=m;
-  calendar.appendChild(t);
+  const title=document.createElement("div");
+  title.className="month";
+  title.textContent=m;
+  calendar.appendChild(title);
 
-  const g=document.createElement("div");
-  g.className="days";
+  const grid=document.createElement("div");
+  grid.className="days";
   const dim=new Date(year,mi+1,0).getDate();
 
   for(let d=1;d<=dim;d++){
@@ -180,12 +191,12 @@ months.forEach((m,mi)=>{
     el.className="day"+(count<=spent?" spent":"");
     el.textContent=d;
     el.onclick=()=>window.open(`https://en.wikipedia.org/wiki/${m}_${d}`,"_blank");
-    g.appendChild(el);
+    grid.appendChild(el);
   }
-  calendar.appendChild(g);
+  calendar.appendChild(grid);
 });
 
-/* ===== SHARE IMAGE WITH RANDOM QUOTE ===== */
+/* ===== SHARE IMAGE ===== */
 document.getElementById("shareBtn").onclick=async()=>{
   const quote=quotes[Math.floor(Math.random()*quotes.length)];
 
@@ -199,40 +210,48 @@ document.getElementById("shareBtn").onclick=async()=>{
   ctx.fillStyle="#e5e7eb";
   ctx.font="bold 48px system-ui";
   ctx.textAlign="center";
-  wrapText(ctx, quote, 540, 240, 820, 56);
+  wrapText(ctx,quote,540,200,820,60);
 
   ctx.fillStyle="#94a3b8";
   ctx.font="32px system-ui";
-  ctx.fillText(today.toDateString(),540,420);
+  ctx.fillText(today.toDateString(),540,380);
 
   ctx.fillStyle="#1e293b";
-  ctx.fillRect(190,480,700,26);
+  ctx.fillRect(190,440,700,26);
   ctx.fillStyle="#22c55e";
-  ctx.fillRect(190,480,700*(percent/100),26);
+  ctx.fillRect(190,440,700*(percent/100),26);
 
   ctx.fillStyle="#e5e7eb";
   ctx.font="bold 44px system-ui";
+  ctx.fillText(`${spent} / ${total} days`,540,540);
+
+  ctx.fillStyle="#94a3b8";
+  ctx.font="32px system-ui";
   ctx.fillText(`${percent}% of ${year} completed`,540,600);
 
   const blob=await new Promise(r=>canvas.toBlob(r));
   const file=new File([blob],"today.png",{type:"image/png"});
-  navigator.share ? navigator.share({files:[file]}) : download(blob);
+
+  navigator.share
+    ? navigator.share({files:[file]})
+    : download(blob);
 };
 
-/* ===== TEXT WRAP ===== */
+/* ===== HELPERS ===== */
 function wrapText(ctx,text,x,y,maxWidth,lineHeight){
   const words=text.split(" ");
   let line="";
-  for(let n=0;n<words.length;n++){
-    const test=line+words[n]+" ";
+  for(let i=0;i<words.length;i++){
+    const test=line+words[i]+" ";
     if(ctx.measureText(test).width>maxWidth){
       ctx.fillText(line,x,y);
-      line=words[n]+" ";
+      line=words[i]+" ";
       y+=lineHeight;
     } else line=test;
   }
   ctx.fillText(line,x,y);
 }
+
 function download(blob){
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
