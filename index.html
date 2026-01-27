@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Days Spent Already</title>
+<link rel="manifest" href="manifest.json">
+
+<style>
+body{margin:0;font-family:system-ui;background:#0f172a;color:#e5e7eb;display:flex;justify-content:center;padding:20px}
+.container{max-width:400px;width:100%;text-align:center}
+.progress{height:14px;background:#1e293b;border-radius:10px;overflow:hidden}
+.bar{height:100%;background:#22c55e;width:0%}
+.stats{display:flex;justify-content:space-between;margin:12px 0;font-size:14px}
+.dots{display:grid;grid-template-columns:repeat(31,1fr);gap:6px;margin-top:20px}
+.dot{width:9px;height:9px;border-radius:50%;background:#334155}
+.dot.spent{background:#22c55e}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h2>Days Spent Already</h2>
+<div class="stats">
+<span id="spent"></span>
+<span id="left"></span>
+</div>
+<div class="progress"><div class="bar" id="bar"></div></div>
+<p id="percent"></p>
+<div class="dots" id="dots"></div>
+</div>
+
+<script>
+const d=new Date(),y=d.getFullYear();
+const s=new Date(y,0,1),e=new Date(y+1,0,1);
+const t=(e-s)/86400000;
+const spent=Math.floor((d-s)/86400000)+1;
+const left=t-spent;
+const per=((spent/t)*100).toFixed(1);
+
+document.getElementById("spent").textContent=`Spent ${spent}`;
+document.getElementById("left").textContent=`Left ${left}`;
+document.getElementById("percent").textContent=`${per}% spent`;
+document.getElementById("bar").style.width=per+"%";
+
+for(let i=1;i<=t;i++){
+  const dot=document.createElement("div");
+  dot.className="dot"+(i<=spent?" spent":"");
+  document.getElementById("dots").appendChild(dot);
+}
+
+if("serviceWorker"in navigator){
+ navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+</body>
+</html>
