@@ -93,6 +93,25 @@ h1{
   margin:12px 0 6px;
 }
 
+.weekdays{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+  margin-bottom:6px;
+}
+
+.weekdays .weekday{
+  font-size:11px;
+  color:var(--muted);
+  text-align:center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:28px;
+  border-radius:6px;
+  background:transparent;
+}
+
 .days{
   display:grid;
   grid-template-columns:repeat(7,1fr);
@@ -108,6 +127,11 @@ h1{
   justify-content:center;
   background:var(--day);
   cursor:pointer;
+}
+
+.day.empty{
+  background:transparent;
+  cursor:default;
 }
 
 .day.spent{
@@ -139,8 +163,8 @@ footer{
 
 <div id="calendar"></div>
 
-<footer>Tap a day → history & events</footer>
-</div>
+<footer>Tap a day → history & events<br><strong>Sonu Kushwaha</strong> — <a href="https://github.com/iamsonukushwaha" target="_blank">@iamsonukushwaha</a></footer>
+</div> 
 
 <script>
 /* ===== QUOTES ===== */
@@ -172,18 +196,38 @@ document.getElementById("percent").textContent=
 
 /* ===== CALENDAR ===== */
 const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const weekdays=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const calendar=document.getElementById("calendar");
 let count=0;
 
 months.forEach((m,mi)=>{
   const title=document.createElement("div");
   title.className="month";
-  title.textContent=m;
+  title.textContent=`${m} ${year}`;
   calendar.appendChild(title);
+
+  const weekdayRow=document.createElement("div");
+  weekdayRow.className="weekdays";
+  weekdays.forEach(w=>{
+    const wEl=document.createElement("div");
+    wEl.className="weekday";
+    wEl.textContent=w;
+    weekdayRow.appendChild(wEl);
+  });
+  calendar.appendChild(weekdayRow);
 
   const grid=document.createElement("div");
   grid.className="days";
+  // shift so Monday is 0 (getDay(): 0=Sun,1=Mon...)
+  const firstDay=(new Date(year,mi,1).getDay()+6)%7;
   const dim=new Date(year,mi+1,0).getDate();
+
+  // Add empty placeholders for alignment
+  for(let i=0;i<firstDay;i++){
+    const empty=document.createElement("div");
+    empty.className="day empty";
+    grid.appendChild(empty);
+  }
 
   for(let d=1;d<=dim;d++){
     count++;
@@ -229,6 +273,13 @@ document.getElementById("shareBtn").onclick=async()=>{
   ctx.font="32px system-ui";
   ctx.fillText(`${percent}% of ${year} completed`,540,600);
 
+  // credit at bottom
+  ctx.fillStyle="#94a3b8";
+  ctx.font="24px system-ui";
+  ctx.fillText("Sonu Kushwaha", 540, 1000);
+  ctx.font="20px system-ui";
+  ctx.fillText("@iamsonukushwaha", 540, 1030);
+
   const blob=await new Promise(r=>canvas.toBlob(r));
   const file=new File([blob],"today.png",{type:"image/png"});
 
@@ -257,6 +308,13 @@ function download(blob){
   a.href=URL.createObjectURL(blob);
   a.download="today.png";
   a.click();
+}
+
+// Register service worker (registers /sw.js by default)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .then((reg) => console.log('Service worker registered:', reg.scope))
+    .catch((err) => console.warn('Service worker registration failed:', err));
 }
 </script>
 </body>
