@@ -318,8 +318,10 @@
             peer.on('open', (id) => {
                 console.log('My peer ID is: ' + id);
                 updateStatus('Ready to chat', 'connected');
-                // Announce to others in the room
+                // Broadcast immediately
                 broadcastPresence(id);
+                // Discover peers immediately
+                discoverPeers();
             });
 
             peer.on('call', (call) => {
@@ -329,7 +331,14 @@
                     call.answer(localStream);
                     handleCall(call);
                 } else {
-                    console.log('Local stream not ready yet');
+                    // Retry if stream not ready
+                    const retryAnswer = setInterval(() => {
+                        if (localStream) {
+                            call.answer(localStream);
+                            handleCall(call);
+                            clearInterval(retryAnswer);
+                        }
+                    }, 500);
                 }
             });
 
@@ -371,27 +380,26 @@
                 console.log('localStorage not available');
             }
             
-            // Add/update this peer
+            // Add/update this peer with current timestamp
             roomData.peers[peerId] = {
                 timestamp: Date.now(),
                 lastSeen: Date.now()
             };
             
-            // Clean up old peers (not seen in last 30 seconds)
+            // Clean up old peers (not seen in last 60 seconds)
             Object.keys(roomData.peers).forEach(id => {
-                if (Date.now() - roomData.peers[id].lastSeen > 30000) {
+                if (Date.now() - roomData.peers[id].lastSeen > 60000) {
+                    console.log('Removing stale peer:', id);
                     delete roomData.peers[id];
                 }
             });
             
             try {
                 localStorage.setItem('peerjs_' + ROOM_ID, JSON.stringify(roomData));
+                console.log('Broadcast presence. Peers in room:', Object.keys(roomData.peers).length);
             } catch (e) {
                 console.log('localStorage not available');
             }
-            
-            // Discover and connect to other peers
-            discoverPeers();
         }
 
         // Discover and connect to other peers in the room
@@ -400,29 +408,48 @@
                 const roomData = localStorage.getItem('peerjs_' + ROOM_ID);
                 if (roomData) {
                     const data = JSON.parse(roomData);
-                    Object.keys(data.peers).forEach(peerId => {
+                    const peerIds = Object.keys(data.peers);
+                    console.log('Found peers in room:', peerIds.length);
+                    
+                    peerIds.forEach(peerId => {
+                        // Connect to any peer that we're not already connected to and is not us
                         if (peerId !== peer.id && !connections[peerId]) {
+                            console.log('Discovered new peer:', peerId);
                             attemptConnect(peerId);
                         }
                     });
                 }
             } catch (e) {
-                console.log('Error discovering peers');
+                console.log('Error discovering peers:', e);
             }
         }
 
         // Attempt to connect to a peer
         function attemptConnect(peerId) {
+            // If stream is not ready, wait for it
             if (!localStream) {
-                setTimeout(() => attemptConnect(peerId), 1000);
+                console.log('Waiting for local stream...');
+                setTimeout(() => attemptConnect(peerId), 200);
+                return;
+            }
+            
+            // Don't try if already connected
+            if (connections[peerId]) {
                 return;
             }
             
             try {
+                console.log('Attempting to call peer:', peerId);
                 const call = peer.call(peerId, localStream);
                 handleCall(call);
             } catch (error) {
                 console.log('Cannot connect to', peerId, ':', error);
+                // Retry after a short delay
+                setTimeout(() => {
+                    if (!connections[peerId]) {
+                        attemptConnect(peerId);
+                    }
+                }, 1000);
             }
         }
 
@@ -448,8 +475,13 @@
                 console.log('Local stream started');
                 updateStatus('Ready to chat', 'connected');
                 
-                // Try to connect to peers after stream is ready
+                // Try to connect to existing peers immediately
                 discoverPeers();
+                
+                // Broadcast that we're ready
+                if (peer && peer.id) {
+                    broadcastPresence(peer.id);
+                }
             } catch (err) {
                 console.error('Error accessing media devices:', err);
                 updateStatus('Camera/Microphone access denied', 'error');
@@ -588,15 +620,15 @@
             initPeer();
             startLocalStream();
             
-            // Periodically discover peers
-            setInterval(discoverPeers, 5000);
+            // Periodically discover peers - faster intervals
+            setInterval(discoverPeers, 2000);
             
-            // Update presence
+            // Update presence more frequently
             setInterval(() => {
                 if (peer && peer.id) {
                     broadcastPresence(peer.id);
                 }
-            }, 10000);
+            }, 5000);
         });
 
         // Cleanup on page unload
