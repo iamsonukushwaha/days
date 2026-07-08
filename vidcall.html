@@ -277,16 +277,8 @@
 
         <div class="info-box">
             <div class="copy-id">
-                <label>Your ID:</label>
-                <span id="myId">Loading...</span>
-                <button class="btn btn-small" onclick="copyToClipboard()">Copy</button>
-                <span class="status waiting" id="status">Waiting for peers...</span>
+                <span class="status waiting" id="status">Connecting to chat room...</span>
             </div>
-        </div>
-
-        <div class="input-section">
-            <input type="text" id="remoteId" placeholder="Enter peer ID to connect or leave empty to wait for others" />
-            <button class="btn" onclick="connectToPeer()">Connect</button>
         </div>
 
         <div class="video-container" id="videoContainer">
@@ -304,7 +296,7 @@
         </div>
 
         <div class="footer">
-            <p>💡 Tip: Share your ID with others or share the page link for them to connect with you</p>
+            <p>💡 Just open this website - everyone who visits joins the same video call instantly!</p>
         </div>
     </div>
 
@@ -312,27 +304,22 @@
     <script>
         let peer;
         let localStream;
+        const ROOM_ID = 'global_chat_room'; // Everyone in the same room
         const connections = {}; // Store all connections
         const remoteVideos = {}; // Store remote video elements
-
+        
         // Initialize PeerJS
         function initPeer() {
-            // Generate a unique ID if not provided
             const peerId = generatePeerId();
             
-            peer = new Peer(peerId, {
-                debug: 0
-            });
+            // Use PeerJS cloud server for signaling
+            peer = new Peer(peerId);
 
             peer.on('open', (id) => {
                 console.log('My peer ID is: ' + id);
-                document.getElementById('myId').textContent = id;
-                updateStatus('Ready', 'waiting');
-            });
-
-            peer.on('connection', (conn) => {
-                console.log('Received connection from:', conn.peer);
-                handleConnection(conn);
+                updateStatus('Ready to chat', 'connected');
+                // Announce to others in the room
+                broadcastPresence(id);
             });
 
             peer.on('call', (call) => {
@@ -348,13 +335,95 @@
 
             peer.on('error', (error) => {
                 console.error('Peer error:', error);
-                updateStatus('Error: ' + error.type, 'error');
+                if (error.type === 'peer-unavailable') {
+                    console.log('Peer is not available');
+                } else {
+                    updateStatus('Error: ' + error.type, 'error');
+                }
+            });
+
+            peer.on('disconnected', () => {
+                console.log('Peer disconnected');
+                updateStatus('Reconnecting...', 'waiting');
             });
         }
 
-        // Generate a simple peer ID
+        // Generate a unique peer ID
         function generatePeerId() {
-            return 'user_' + Math.random().toString(36).substr(2, 9);
+            return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+
+        // Broadcast presence to room (using localStorage)
+        function broadcastPresence(peerId) {
+            const roomData = {
+                peers: {},
+                timestamp: Date.now()
+            };
+            
+            // Get existing room data
+            try {
+                const existing = localStorage.getItem('peerjs_' + ROOM_ID);
+                if (existing) {
+                    const data = JSON.parse(existing);
+                    roomData.peers = data.peers || {};
+                }
+            } catch (e) {
+                console.log('localStorage not available');
+            }
+            
+            // Add/update this peer
+            roomData.peers[peerId] = {
+                timestamp: Date.now(),
+                lastSeen: Date.now()
+            };
+            
+            // Clean up old peers (not seen in last 30 seconds)
+            Object.keys(roomData.peers).forEach(id => {
+                if (Date.now() - roomData.peers[id].lastSeen > 30000) {
+                    delete roomData.peers[id];
+                }
+            });
+            
+            try {
+                localStorage.setItem('peerjs_' + ROOM_ID, JSON.stringify(roomData));
+            } catch (e) {
+                console.log('localStorage not available');
+            }
+            
+            // Discover and connect to other peers
+            discoverPeers();
+        }
+
+        // Discover and connect to other peers in the room
+        function discoverPeers() {
+            try {
+                const roomData = localStorage.getItem('peerjs_' + ROOM_ID);
+                if (roomData) {
+                    const data = JSON.parse(roomData);
+                    Object.keys(data.peers).forEach(peerId => {
+                        if (peerId !== peer.id && !connections[peerId]) {
+                            attemptConnect(peerId);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('Error discovering peers');
+            }
+        }
+
+        // Attempt to connect to a peer
+        function attemptConnect(peerId) {
+            if (!localStream) {
+                setTimeout(() => attemptConnect(peerId), 1000);
+                return;
+            }
+            
+            try {
+                const call = peer.call(peerId, localStream);
+                handleCall(call);
+            } catch (error) {
+                console.log('Cannot connect to', peerId, ':', error);
+            }
         }
 
         // Start local video stream
@@ -371,14 +440,16 @@
                 const localVideo = document.getElementById('localVideo');
                 localVideo.srcObject = localStream;
                 
-                // Hide placeholder
                 const placeholder = document.getElementById('localVideoPlaceholder');
                 if (placeholder) {
                     placeholder.style.display = 'none';
                 }
 
                 console.log('Local stream started');
-                updateStatus('Ready', 'connected');
+                updateStatus('Ready to chat', 'connected');
+                
+                // Try to connect to peers after stream is ready
+                discoverPeers();
             } catch (err) {
                 console.error('Error accessing media devices:', err);
                 updateStatus('Camera/Microphone access denied', 'error');
@@ -386,42 +457,11 @@
             }
         }
 
-        // Connect to a peer
-        function connectToPeer() {
-            const remoteId = document.getElementById('remoteId').value.trim();
-            if (!remoteId) {
-                alert('Please enter a peer ID');
-                return;
-            }
-
-            if (remoteId === peer.id) {
-                alert('You cannot connect to yourself');
-                return;
-            }
-
-            if (connections[remoteId]) {
-                alert('Already connected to this peer');
-                return;
-            }
-
-            // Create a call to the remote peer
-            const call = peer.call(remoteId, localStream);
-            handleCall(call);
-
-            // Also create a data connection
-            const conn = peer.connect(remoteId);
-            handleConnection(conn);
-
-            console.log('Attempting to connect to:', remoteId);
-            document.getElementById('remoteId').value = '';
-        }
-
         // Handle incoming/outgoing calls
         function handleCall(call) {
             const peerId = call.peer;
 
             if (connections[peerId]) {
-                console.log('Call already exists with this peer');
                 return;
             }
 
@@ -430,38 +470,21 @@
             call.on('stream', (remoteStream) => {
                 console.log('Received remote stream from:', peerId);
                 displayRemoteVideo(peerId, remoteStream);
-                updateStatus('Connected with ' + getShortId(peerId), 'connected');
+                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
             });
 
             call.on('close', () => {
                 console.log('Call closed with:', peerId);
                 removeRemoteVideo(peerId);
                 delete connections[peerId];
-                checkConnectionStatus();
+                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
             });
 
             call.on('error', (error) => {
                 console.error('Call error with', peerId, ':', error);
                 removeRemoteVideo(peerId);
                 delete connections[peerId];
-                checkConnectionStatus();
-            });
-        }
-
-        // Handle data connections
-        function handleConnection(conn) {
-            const peerId = conn.peer;
-
-            conn.on('open', () => {
-                console.log('Data connection opened with:', peerId);
-            });
-
-            conn.on('close', () => {
-                console.log('Data connection closed with:', peerId);
-            });
-
-            conn.on('error', (error) => {
-                console.error('Connection error:', error);
+                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
             });
         }
 
@@ -484,7 +507,7 @@
 
                 const label = document.createElement('div');
                 label.className = 'video-label';
-                label.textContent = 'Peer: ' + getShortId(peerId);
+                label.textContent = 'Participant';
 
                 videoBox.appendChild(video);
                 videoBox.appendChild(label);
@@ -496,7 +519,7 @@
             remoteVideos[peerId].srcObject = stream;
         }
 
-        // Remove remote video
+        // Remove remote video and disconnect
         function removeRemoteVideo(peerId) {
             const videoBox = document.getElementById('video-' + peerId);
             if (videoBox) {
@@ -550,7 +573,7 @@
                 delete connections[peerId];
                 removeRemoteVideo(peerId);
             });
-            updateStatus('Ready', 'waiting');
+            updateStatus('Disconnected from chat', 'waiting');
         }
 
         // Update status
@@ -560,32 +583,20 @@
             status.className = 'status ' + type;
         }
 
-        // Check connection status
-        function checkConnectionStatus() {
-            if (Object.keys(connections).length === 0) {
-                updateStatus('Waiting for peers...', 'waiting');
-            }
-        }
-
-        // Get short ID for display
-        function getShortId(id) {
-            return id.substring(id.length - 6);
-        }
-
-        // Copy to clipboard
-        function copyToClipboard() {
-            const myId = document.getElementById('myId').textContent;
-            navigator.clipboard.writeText(myId).then(() => {
-                alert('ID copied to clipboard!');
-            }).catch(() => {
-                alert('Failed to copy');
-            });
-        }
-
         // Initialize on page load
         window.addEventListener('load', () => {
             initPeer();
             startLocalStream();
+            
+            // Periodically discover peers
+            setInterval(discoverPeers, 5000);
+            
+            // Update presence
+            setInterval(() => {
+                if (peer && peer.id) {
+                    broadcastPresence(peer.id);
+                }
+            }, 10000);
         });
 
         // Cleanup on page unload
@@ -595,6 +606,18 @@
             }
             if (peer) {
                 peer.destroy();
+            }
+            
+            // Remove from room
+            try {
+                const roomData = localStorage.getItem('peerjs_' + ROOM_ID);
+                if (roomData) {
+                    const data = JSON.parse(roomData);
+                    delete data.peers[peer.id];
+                    localStorage.setItem('peerjs_' + ROOM_ID, JSON.stringify(data));
+                }
+            } catch (e) {
+                console.log('Error updating room data');
             }
         });
     </script>
