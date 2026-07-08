@@ -277,8 +277,16 @@
 
         <div class="info-box">
             <div class="copy-id">
-                <span class="status waiting" id="status">Connecting to chat room...</span>
+                <label>Your ID:</label>
+                <span id="myId">Loading...</span>
+                <button class="btn btn-small" onclick="copyToClipboard()">Copy</button>
+                <span class="status waiting" id="status">Waiting for peers...</span>
             </div>
+        </div>
+
+        <div class="input-section">
+            <input type="text" id="remoteId" placeholder="Enter peer ID to connect or leave empty to wait for others" />
+            <button class="btn" onclick="connectToPeer()">Connect</button>
         </div>
 
         <div class="video-container" id="videoContainer">
@@ -296,7 +304,7 @@
         </div>
 
         <div class="footer">
-            <p>💡 Just open this website - everyone who visits joins the same video call instantly!</p>
+            <p>💡 Tip: Share your ID with others or share the page link for them to connect with you</p>
         </div>
     </div>
 
@@ -304,24 +312,27 @@
     <script>
         let peer;
         let localStream;
-        const ROOM_ID = 'global_chat_room'; // Everyone in the same room
         const connections = {}; // Store all connections
         const remoteVideos = {}; // Store remote video elements
-        
+
         // Initialize PeerJS
         function initPeer() {
+            // Generate a unique ID if not provided
             const peerId = generatePeerId();
             
-            // Use PeerJS cloud server for signaling
-            peer = new Peer(peerId);
+            peer = new Peer(peerId, {
+                debug: 0
+            });
 
             peer.on('open', (id) => {
                 console.log('My peer ID is: ' + id);
-                updateStatus('Ready to chat', 'connected');
-                // Broadcast immediately
-                broadcastPresence(id);
-                // Discover peers immediately
-                discoverPeers();
+                document.getElementById('myId').textContent = id;
+                updateStatus('Ready', 'waiting');
+            });
+
+            peer.on('connection', (conn) => {
+                console.log('Received connection from:', conn.peer);
+                handleConnection(conn);
             });
 
             peer.on('call', (call) => {
@@ -331,126 +342,19 @@
                     call.answer(localStream);
                     handleCall(call);
                 } else {
-                    // Retry if stream not ready
-                    const retryAnswer = setInterval(() => {
-                        if (localStream) {
-                            call.answer(localStream);
-                            handleCall(call);
-                            clearInterval(retryAnswer);
-                        }
-                    }, 500);
+                    console.log('Local stream not ready yet');
                 }
             });
 
             peer.on('error', (error) => {
                 console.error('Peer error:', error);
-                if (error.type === 'peer-unavailable') {
-                    console.log('Peer is not available');
-                } else {
-                    updateStatus('Error: ' + error.type, 'error');
-                }
-            });
-
-            peer.on('disconnected', () => {
-                console.log('Peer disconnected');
-                updateStatus('Reconnecting...', 'waiting');
+                updateStatus('Error: ' + error.type, 'error');
             });
         }
 
-        // Generate a unique peer ID
+        // Generate a simple peer ID
         function generatePeerId() {
-            return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-        }
-
-        // Broadcast presence to room (using localStorage)
-        function broadcastPresence(peerId) {
-            const roomData = {
-                peers: {},
-                timestamp: Date.now()
-            };
-            
-            // Get existing room data
-            try {
-                const existing = localStorage.getItem('peerjs_' + ROOM_ID);
-                if (existing) {
-                    const data = JSON.parse(existing);
-                    roomData.peers = data.peers || {};
-                }
-            } catch (e) {
-                console.log('localStorage not available');
-            }
-            
-            // Add/update this peer with current timestamp
-            roomData.peers[peerId] = {
-                timestamp: Date.now(),
-                lastSeen: Date.now()
-            };
-            
-            // Clean up old peers (not seen in last 60 seconds)
-            Object.keys(roomData.peers).forEach(id => {
-                if (Date.now() - roomData.peers[id].lastSeen > 60000) {
-                    console.log('Removing stale peer:', id);
-                    delete roomData.peers[id];
-                }
-            });
-            
-            try {
-                localStorage.setItem('peerjs_' + ROOM_ID, JSON.stringify(roomData));
-                console.log('Broadcast presence. Peers in room:', Object.keys(roomData.peers).length);
-            } catch (e) {
-                console.log('localStorage not available');
-            }
-        }
-
-        // Discover and connect to other peers in the room
-        function discoverPeers() {
-            try {
-                const roomData = localStorage.getItem('peerjs_' + ROOM_ID);
-                if (roomData) {
-                    const data = JSON.parse(roomData);
-                    const peerIds = Object.keys(data.peers);
-                    console.log('Found peers in room:', peerIds.length);
-                    
-                    peerIds.forEach(peerId => {
-                        // Connect to any peer that we're not already connected to and is not us
-                        if (peerId !== peer.id && !connections[peerId]) {
-                            console.log('Discovered new peer:', peerId);
-                            attemptConnect(peerId);
-                        }
-                    });
-                }
-            } catch (e) {
-                console.log('Error discovering peers:', e);
-            }
-        }
-
-        // Attempt to connect to a peer
-        function attemptConnect(peerId) {
-            // If stream is not ready, wait for it
-            if (!localStream) {
-                console.log('Waiting for local stream...');
-                setTimeout(() => attemptConnect(peerId), 200);
-                return;
-            }
-            
-            // Don't try if already connected
-            if (connections[peerId]) {
-                return;
-            }
-            
-            try {
-                console.log('Attempting to call peer:', peerId);
-                const call = peer.call(peerId, localStream);
-                handleCall(call);
-            } catch (error) {
-                console.log('Cannot connect to', peerId, ':', error);
-                // Retry after a short delay
-                setTimeout(() => {
-                    if (!connections[peerId]) {
-                        attemptConnect(peerId);
-                    }
-                }, 1000);
-            }
+            return 'user_' + Math.random().toString(36).substr(2, 9);
         }
 
         // Start local video stream
@@ -467,21 +371,14 @@
                 const localVideo = document.getElementById('localVideo');
                 localVideo.srcObject = localStream;
                 
+                // Hide placeholder
                 const placeholder = document.getElementById('localVideoPlaceholder');
                 if (placeholder) {
                     placeholder.style.display = 'none';
                 }
 
                 console.log('Local stream started');
-                updateStatus('Ready to chat', 'connected');
-                
-                // Try to connect to existing peers immediately
-                discoverPeers();
-                
-                // Broadcast that we're ready
-                if (peer && peer.id) {
-                    broadcastPresence(peer.id);
-                }
+                updateStatus('Ready', 'connected');
             } catch (err) {
                 console.error('Error accessing media devices:', err);
                 updateStatus('Camera/Microphone access denied', 'error');
@@ -489,11 +386,42 @@
             }
         }
 
+        // Connect to a peer
+        function connectToPeer() {
+            const remoteId = document.getElementById('remoteId').value.trim();
+            if (!remoteId) {
+                alert('Please enter a peer ID');
+                return;
+            }
+
+            if (remoteId === peer.id) {
+                alert('You cannot connect to yourself');
+                return;
+            }
+
+            if (connections[remoteId]) {
+                alert('Already connected to this peer');
+                return;
+            }
+
+            // Create a call to the remote peer
+            const call = peer.call(remoteId, localStream);
+            handleCall(call);
+
+            // Also create a data connection
+            const conn = peer.connect(remoteId);
+            handleConnection(conn);
+
+            console.log('Attempting to connect to:', remoteId);
+            document.getElementById('remoteId').value = '';
+        }
+
         // Handle incoming/outgoing calls
         function handleCall(call) {
             const peerId = call.peer;
 
             if (connections[peerId]) {
+                console.log('Call already exists with this peer');
                 return;
             }
 
@@ -502,21 +430,38 @@
             call.on('stream', (remoteStream) => {
                 console.log('Received remote stream from:', peerId);
                 displayRemoteVideo(peerId, remoteStream);
-                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
+                updateStatus('Connected with ' + getShortId(peerId), 'connected');
             });
 
             call.on('close', () => {
                 console.log('Call closed with:', peerId);
                 removeRemoteVideo(peerId);
                 delete connections[peerId];
-                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
+                checkConnectionStatus();
             });
 
             call.on('error', (error) => {
                 console.error('Call error with', peerId, ':', error);
                 removeRemoteVideo(peerId);
                 delete connections[peerId];
-                updateStatus('Connected with ' + Object.keys(connections).length + ' peer(s)', 'connected');
+                checkConnectionStatus();
+            });
+        }
+
+        // Handle data connections
+        function handleConnection(conn) {
+            const peerId = conn.peer;
+
+            conn.on('open', () => {
+                console.log('Data connection opened with:', peerId);
+            });
+
+            conn.on('close', () => {
+                console.log('Data connection closed with:', peerId);
+            });
+
+            conn.on('error', (error) => {
+                console.error('Connection error:', error);
             });
         }
 
@@ -539,7 +484,7 @@
 
                 const label = document.createElement('div');
                 label.className = 'video-label';
-                label.textContent = 'Participant';
+                label.textContent = 'Peer: ' + getShortId(peerId);
 
                 videoBox.appendChild(video);
                 videoBox.appendChild(label);
@@ -551,7 +496,7 @@
             remoteVideos[peerId].srcObject = stream;
         }
 
-        // Remove remote video and disconnect
+        // Remove remote video
         function removeRemoteVideo(peerId) {
             const videoBox = document.getElementById('video-' + peerId);
             if (videoBox) {
@@ -605,7 +550,7 @@
                 delete connections[peerId];
                 removeRemoteVideo(peerId);
             });
-            updateStatus('Disconnected from chat', 'waiting');
+            updateStatus('Ready', 'waiting');
         }
 
         // Update status
@@ -615,20 +560,32 @@
             status.className = 'status ' + type;
         }
 
+        // Check connection status
+        function checkConnectionStatus() {
+            if (Object.keys(connections).length === 0) {
+                updateStatus('Waiting for peers...', 'waiting');
+            }
+        }
+
+        // Get short ID for display
+        function getShortId(id) {
+            return id.substring(id.length - 6);
+        }
+
+        // Copy to clipboard
+        function copyToClipboard() {
+            const myId = document.getElementById('myId').textContent;
+            navigator.clipboard.writeText(myId).then(() => {
+                alert('ID copied to clipboard!');
+            }).catch(() => {
+                alert('Failed to copy');
+            });
+        }
+
         // Initialize on page load
         window.addEventListener('load', () => {
             initPeer();
             startLocalStream();
-            
-            // Periodically discover peers - faster intervals
-            setInterval(discoverPeers, 2000);
-            
-            // Update presence more frequently
-            setInterval(() => {
-                if (peer && peer.id) {
-                    broadcastPresence(peer.id);
-                }
-            }, 5000);
         });
 
         // Cleanup on page unload
@@ -638,18 +595,6 @@
             }
             if (peer) {
                 peer.destroy();
-            }
-            
-            // Remove from room
-            try {
-                const roomData = localStorage.getItem('peerjs_' + ROOM_ID);
-                if (roomData) {
-                    const data = JSON.parse(roomData);
-                    delete data.peers[peer.id];
-                    localStorage.setItem('peerjs_' + ROOM_ID, JSON.stringify(data));
-                }
-            } catch (e) {
-                console.log('Error updating room data');
             }
         });
     </script>
